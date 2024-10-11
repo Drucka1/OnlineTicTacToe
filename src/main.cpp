@@ -21,8 +21,6 @@ int winner( int game[3][3]){
     return 0;
 }
 
-
-
 void draw_map(RenderWindow* window, int jeu[3][3]){
     Vertex line1[] = {
         Vertex(Vector2f(WINDOW/3+1, 0)),
@@ -57,13 +55,13 @@ void draw_map(RenderWindow* window, int jeu[3][3]){
                 (*window).draw(circle);
             }
             if (jeu[i][j] == 2){              
-                sf::RectangleShape horizontal(sf::Vector2f(100 * 2, 25));
-                horizontal.setFillColor(sf::Color::Red);
+                RectangleShape horizontal(Vector2f(100 * 2, 25));
+                horizontal.setFillColor(Color::Red);
                 horizontal.setOrigin(100, 25 / 2);
                 horizontal.setPosition(WINDOW / 6 + i*WINDOW/3 , WINDOW / 6 + j*WINDOW/3);
 
-                sf::RectangleShape vertical(sf::Vector2f(25, 100 * 2));
-                vertical.setFillColor(sf::Color::Red);
+                RectangleShape vertical(Vector2f(25, 100 * 2));
+                vertical.setFillColor(Color::Red);
                 vertical.setOrigin(25 / 2, 100);
                 vertical.setPosition(WINDOW / 6 + i*WINDOW/3 , WINDOW / 6 + j*WINDOW/3);
 
@@ -79,6 +77,31 @@ void draw_map(RenderWindow* window, int jeu[3][3]){
 
 }
 
+void draw_menu(RenderWindow* window) {
+    RectangleShape background(Vector2f(WINDOW, WINDOW));
+    background.setFillColor(Color(0, 0, 0, 192));
+    window->draw(background);
+
+    Font font; 
+    font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf");
+
+    Text menu;
+    menu.setFont(font); 
+    menu.setString("Menu");
+    menu.setCharacterSize(72);
+    menu.setFillColor(Color::White);
+    menu.setPosition((WINDOW +2 - menu.getGlobalBounds().width) / 2, WINDOW /4+26);
+    window->draw(menu);
+
+    Text text;
+    text.setFont(font); 
+    text.setString("New Game");
+    text.setCharacterSize(72);
+    text.setFillColor(Color::White);
+    text.setPosition((WINDOW +2- text.getGlobalBounds().width) / 2, 2*WINDOW / 4+26);
+    window->draw(text);
+}
+
 int main(){
     RenderWindow window(VideoMode(WINDOW+2,WINDOW+2), "TicTac",Style::Close);
 
@@ -88,18 +111,18 @@ int main(){
             jeu[i][j] = 0;
         }
     }
-    bool player = true;
+    bool player = false;
     int tour = 0;
     Event event;
 
     while (window.isOpen()) {
         while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed) {
+            if (event.type == Event::Closed) {
                 window.close();
             }
         }
-        if (tour != 9){
-            if (Mouse::isButtonPressed(sf::Mouse::Left)){
+        if (tour != -1){
+            if (Mouse::isButtonPressed(Mouse::Left)){
                 Vector2i pos = Mouse::getPosition(window);
                 Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
                 if (!jeu[case_pos.x][case_pos.y] && player){
@@ -108,7 +131,7 @@ int main(){
                     jeu[case_pos.x][case_pos.y] = 1;
                 }
             }
-            if (Mouse::isButtonPressed(sf::Mouse::Right)){
+            if (Mouse::isButtonPressed(Mouse::Right)){
                 Vector2i pos = Mouse::getPosition(window);
                 Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
                 if (!jeu[case_pos.x][case_pos.y] && !player){
@@ -117,13 +140,43 @@ int main(){
                     jeu[case_pos.x][case_pos.y] = 2;
                 }
             }
+            window.clear();
+            draw_map(&window, jeu);
         }
-        
-        
-        if (winner(jeu) || tour == 9) {cout << "Partie finie | Vainqueur :" << winner(jeu) << endl; tour = 9;}
+        else {
+            window.clear(Color::Black);
+            draw_map(&window, jeu);
+            draw_menu(&window);
+            if (Mouse::isButtonPressed(Mouse::Left)){
+                Vector2i pos = Mouse::getPosition(window);
 
+                RectangleShape menu(Vector2f(206,46));
+                menu.setPosition(199,204);
+                
+
+                RectangleShape new_game(Vector2f(416,47));
+                new_game.setPosition(94,353);
+
+                if (menu.getGlobalBounds().contains(pos.x,pos.y)) window.close();
+
+                if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
+                    
+                    for(int i = 0;i<3;i++){
+                        for(int j = 0;j<3;j++){
+                            jeu[i][j] = 0;
+                        }
+                    }
+                    player = false;
+                    tour = 0;                  
+                    
+                }
+
+            }
+        }
     
-        draw_map(&window, jeu);
+        if (winner(jeu) || tour == 9) { tour = -1;}
+    
+        
         window.display();
     }
     return 0;
