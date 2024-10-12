@@ -1,6 +1,6 @@
 
 compil: 
-	g++ src/*.cpp -o build/main -Wall -g -lsfml-graphics -lsfml-window -lsfml-system
+	g++ src/*.cpp -o build/socket -Wall -g -lsfml-graphics -lsfml-window -lsfml-system
 
 exec: compil
-	./build/main
+	./build/socket
