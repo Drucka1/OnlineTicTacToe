@@ -16,6 +16,10 @@ class Game{
         void init();
         Player winner();
         void draw(RenderWindow* window);
-        void move(int i,int j,Player turn);
+        void play(int i,int j,Player player);
         bool is_ongoing();
+        void run(RenderWindow* window,int socket,Player player);
+        void menu(RenderWindow* window);
 };
+
+struct Move { int i,j;};

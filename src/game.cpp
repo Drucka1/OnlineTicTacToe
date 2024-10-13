@@ -1,6 +1,14 @@
 #include "game.h"
 #include <SFML/Graphics.hpp>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <string.h>
+#include <iostream>
+
 using namespace sf;
+using namespace std;
 
 void Game::init(){
     this->turn = Player::X;
@@ -12,25 +20,16 @@ void Game::init(){
     }
 }
 
-void Game::move(int i, int j, Player turn){
-    if (this->map[i][j] == Player::None && turn == this->turn){
-        this->map[i][j] = turn;
+void Game::play(int i, int j, Player player){
+    if (this->map[i][j] == Player::None && player == this->turn){
+        this->map[i][j] = player;
         this->tour++;
-        switch (turn) {
-            case Player::O:
-                this->turn = Player::X;
-                break;
-            case Player::X:
-                this->turn = Player::O;
-                break;
-            default:
-                break;
-        }
+        this->turn = player == Player::O ? Player::X : Player::O;
     }
 }
 
 bool Game::is_ongoing(){
-    return winner() == Player::None;
+    return winner() == Player::None && this->tour < 9;
 }
 
 Player Game::winner(){
@@ -48,7 +47,6 @@ Player Game::winner(){
     if (this->map[2][0] == Player::X && this->map[1][1] == Player::X && this->map[0][2] == Player::X) return Player::X;
     return Player::None;
 }
-
 
 void Game::draw(RenderWindow* window){
     Vertex line1[] = {
@@ -99,9 +97,101 @@ void Game::draw(RenderWindow* window){
 
                 (*window).draw(horizontal);
                 (*window).draw(vertical);
-
             }
         }
     }
+}
 
+void Game::menu(RenderWindow* window) {
+    RectangleShape background(Vector2f(WINDOW, WINDOW));
+    background.setFillColor(Color(0, 0, 0, 192));
+    window->draw(background);
+
+    Font font; 
+    font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf");
+
+    Text menu;
+    menu.setFont(font); 
+    menu.setString("Menu");
+    menu.setCharacterSize(72);
+    menu.setFillColor(Color::White);
+    menu.setPosition((WINDOW +2 - menu.getGlobalBounds().width) / 2, WINDOW /4+26);
+    window->draw(menu);
+
+    Text text;
+    text.setFont(font); 
+    text.setString("New Game");
+    text.setCharacterSize(72);
+    text.setFillColor(Color::White);
+    text.setPosition((WINDOW +2- text.getGlobalBounds().width) / 2, 2*WINDOW / 4+26);
+    window->draw(text);
+}
+
+void Game::run(RenderWindow* window, int socket, Player player){
+    Event event;
+
+    while (window->isOpen()) {
+        while (window->pollEvent(event)) {
+            if (event.type == Event::Closed) {
+                window->close();
+            }
+        }
+        
+        window->clear();
+
+        if (!is_ongoing()){
+            
+            draw(window);
+            menu(window);
+
+            if (Mouse::isButtonPressed(Mouse::Left)){
+                Vector2i pos = Mouse::getPosition(*window);
+
+                RectangleShape menu(Vector2f(206,46));
+                menu.setPosition(199,204);
+                
+                RectangleShape new_game(Vector2f(416,47));
+                new_game.setPosition(94,353);
+
+                if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
+
+                if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
+                    Move move = {-1,-1};
+                    send(socket,&move,sizeof(Move),0);
+                    init();                 
+                }
+            }
+        }  
+
+        else if (player == this->turn){
+            if (Mouse::isButtonPressed(Mouse::Right)){
+                Vector2i pos = Mouse::getPosition(*window);
+                
+                Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
+                if (case_pos.x <=3 && case_pos.y <= 3 && 0 <= case_pos.x && 0 <= case_pos.y){
+                    Move move = {case_pos.x,case_pos.y};
+                    send(socket,&move,sizeof(Move),0);
+                    play(case_pos.x,case_pos.y,player);
+                }
+                
+            }
+            draw(window);
+        } 
+        
+        else  {
+            Move move;
+            draw(window);
+            window->display();
+            if (read(socket,&move,sizeof(Move)) < 0){
+                perror("Échec lors de la lecture du socket");
+                return;
+            }
+            cout << move.i << endl;
+            if (move.i == -1) init(); else play(move.i,move.j,player == Player::O ? Player::X : Player::O);
+            
+            
+        }
+
+        window->display();
+    }
 }
