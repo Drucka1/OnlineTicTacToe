@@ -141,6 +141,7 @@ void Game::run(RenderWindow* window, int socket, Player player){
 
         if (!is_ongoing()){
             
+            
             draw(window);
             menu(window);
 
@@ -161,6 +162,43 @@ void Game::run(RenderWindow* window, int socket, Player player){
                     init();                 
                 }
             }
+
+
+
+
+
+            Move move;
+
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            FD_SET(socket, &read_fds);
+
+            struct timeval timeout;
+            timeout.tv_sec = 0; // 1 seconde
+            timeout.tv_usec = 0.1;
+
+            int result = select(socket + 1, &read_fds, NULL, NULL, &timeout);
+            if (result > 0 && FD_ISSET(socket, &read_fds)) {
+                if (read(socket, &move, sizeof(Move)) < 0) {
+                    perror("Échec lors de la lecture du socket");
+                    return;
+                }
+                if (move.i == -1) init();                
+            }
+
+
+
+
+
+
+
+
+
+
+
+
+
+            
         }  
 
         else if (player == this->turn){
@@ -182,14 +220,24 @@ void Game::run(RenderWindow* window, int socket, Player player){
             Move move;
             draw(window);
             window->display();
-            if (read(socket,&move,sizeof(Move)) < 0){
-                perror("Échec lors de la lecture du socket");
-                return;
+
+            fd_set read_fds;
+            FD_ZERO(&read_fds);
+            FD_SET(socket, &read_fds);
+
+            struct timeval timeout;
+            timeout.tv_sec = 1; // 1 seconde
+            timeout.tv_usec = 0;
+
+            int result = select(socket + 1, &read_fds, NULL, NULL, &timeout);
+            if (result > 0 && FD_ISSET(socket, &read_fds)) {
+                if (read(socket, &move, sizeof(Move)) < 0) {
+                    perror("Échec lors de la lecture du socket");
+                    return;
+                }
+                play(move.i, move.j, player == Player::O ? Player::X : Player::O);
+                
             }
-            cout << move.i << endl;
-            if (move.i == -1) init(); else play(move.i,move.j,player == Player::O ? Player::X : Player::O);
-            
-            
         }
 
         window->display();
