@@ -11,14 +11,7 @@
 using namespace std;
 using namespace sf;
 
-const int PORT = 8080;
-
-
-
-// Après chaque appel critique
-
-
-
+const int PORT = 10000;
 
 int start_server() {
     int server_fd, new_socket;

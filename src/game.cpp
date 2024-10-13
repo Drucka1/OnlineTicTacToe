@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <iostream>
+
 using namespace sf;
 using namespace std;
 
@@ -28,7 +29,7 @@ void Game::play(int i, int j, Player player){
 }
 
 bool Game::is_ongoing(){
-    return winner() == Player::None || this->tour != 9;
+    return winner() == Player::None && this->tour < 9;
 }
 
 Player Game::winner(){
@@ -46,7 +47,6 @@ Player Game::winner(){
     if (this->map[2][0] == Player::X && this->map[1][1] == Player::X && this->map[0][2] == Player::X) return Player::X;
     return Player::None;
 }
-
 
 void Game::draw(RenderWindow* window){
     Vertex line1[] = {
@@ -97,7 +97,6 @@ void Game::draw(RenderWindow* window){
 
                 (*window).draw(horizontal);
                 (*window).draw(vertical);
-
             }
         }
     }
@@ -132,59 +131,67 @@ void Game::run(RenderWindow* window, int socket, Player player){
     Event event;
 
     while (window->isOpen()) {
-        if (player != this->turn){
+        while (window->pollEvent(event)) {
+            if (event.type == Event::Closed) {
+                window->close();
+            }
+        }
+        
+        window->clear();
+
+        if (!is_ongoing()){
+            
+            draw(window);
+            menu(window);
+
+            if (Mouse::isButtonPressed(Mouse::Left)){
+                Vector2i pos = Mouse::getPosition(*window);
+
+                RectangleShape menu(Vector2f(206,46));
+                menu.setPosition(199,204);
+                
+                RectangleShape new_game(Vector2f(416,47));
+                new_game.setPosition(94,353);
+
+                if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
+
+                if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
+                    Move move = {-1,-1};
+                    send(socket,&move,sizeof(Move),0);
+                    init();                 
+                }
+            }
+        }  
+
+        else if (player == this->turn){
+            if (Mouse::isButtonPressed(Mouse::Right)){
+                Vector2i pos = Mouse::getPosition(*window);
+                
+                Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
+                if (case_pos.x <=3 && case_pos.y <= 3 && 0 <= case_pos.x && 0 <= case_pos.y){
+                    Move move = {case_pos.x,case_pos.y};
+                    send(socket,&move,sizeof(Move),0);
+                    play(case_pos.x,case_pos.y,player);
+                }
+                
+            }
+            draw(window);
+        } 
+        
+        else  {
             Move move;
             draw(window);
             window->display();
             if (read(socket,&move,sizeof(Move)) < 0){
                 perror("Échec lors de la lecture du socket");
+                return;
             }
-            cout << move.i << " " << move.j << endl;
-            play(move.i,move.j,player == Player::O ? Player::X : Player::O);
+            cout << move.i << endl;
+            if (move.i == -1) init(); else play(move.i,move.j,player == Player::O ? Player::X : Player::O);
+            
+            
         }
-        else {
-            while (window->pollEvent(event)) {
-                if (event.type == Event::Closed) {
-                    window->close();
-                }
-            }
-            if (is_ongoing()){
-                if (Mouse::isButtonPressed(Mouse::Right)){
-                    Vector2i pos = Mouse::getPosition(*window);
-                    
-                    Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
-                    if (case_pos.x <=3 && case_pos.y <= 3 && 0 <= case_pos.x && 0 <= case_pos.y){
-                        play(case_pos.x,case_pos.y,player);
-                        Move move = {case_pos.x,case_pos.y};
-                        send(socket,&move,sizeof(Move),0);
-                    }
-                    
-                }
-                window->clear();
-                draw(window);
-            }
-            else {
-                window->clear();
-                draw(window);
-                menu(window);
 
-                if (Mouse::isButtonPressed(Mouse::Left)){
-                    Vector2i pos = Mouse::getPosition(*window);
-
-                    RectangleShape menu(Vector2f(206,46));
-                    menu.setPosition(199,204);
-                    
-                    RectangleShape new_game(Vector2f(416,47));
-                    new_game.setPosition(94,353);
-
-                    if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
-
-                    if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
-                        init();                 
-                    }
-                }
-            }        
-            window->display();
-        }
+        window->display();
     }
 }
