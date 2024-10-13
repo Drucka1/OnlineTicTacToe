@@ -20,7 +20,7 @@ void start_server() {
 
     // Configuration de l'adresse
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY; // Accepte les connexions de n'importe quelle adresse
+    address.sin_addr.s_addr = INADDR_ANY;  // Accepte les connexions de n'importe quelle adresse
     address.sin_port = htons(PORT);
 
     // Lier le socket
@@ -32,9 +32,9 @@ void start_server() {
     std::cout << "Connexion acceptée." << std::endl;
 
     read(new_socket, buffer, 1024);
-    std::cout << "Message reçu: " << buffer << std::endl;
+    std::cout << "Adresse recu: " << buffer << std::endl;
 
-    const char *response = "Message reçu!";
+    const char *response = "TicTacToe";
     send(new_socket, response, strlen(response), 0);
     
     // Fermer le socket
@@ -45,7 +45,7 @@ void start_server() {
 void start_client(const char *server_ip) {
     int sock = 0;
     struct sockaddr_in serv_addr;
-    char message[] = "Hello from client";
+    char message[] = "Une partie ?";
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     serv_addr.sin_family = AF_INET;
@@ -59,6 +59,9 @@ void start_client(const char *server_ip) {
     send(sock, message, strlen(message), 0);
     std::cout << "Message envoyé au serveur." << std::endl;
 
+    char buffer[1024];
+    read(sock,&buffer,sizeof(buffer));
+    std::cout << buffer << std::endl;
     // Fermer le socket
     close(sock);
 }
