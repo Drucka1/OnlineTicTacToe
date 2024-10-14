@@ -3,10 +3,20 @@
 using namespace sf;
 
 int const WINDOW = 600;
-const int PORT = 11542;
+const int PORT = 11922;
 
 enum class Player { O,X,None };
 enum class GameWindow { Menu,Credit,Play,Rematch,End };
+
+enum class MessageType { Move,Quit,AskRematch,AnswerRematch };
+
+struct Message {
+    MessageType type;
+    union {
+        struct Move {int i, j;} move;
+        bool answerRematch;
+    } data;
+};
 
 class TicTacToe{
     private : 
@@ -18,8 +28,8 @@ class TicTacToe{
         GameWindow window;
         Font font;
 
-        void init_rematch();
         void init();
+        void init_match();
         void init_socket(Player player);
         Player winner();
         void draw(RenderWindow* window);
@@ -28,9 +38,9 @@ class TicTacToe{
         void end(RenderWindow* window);
         void accept_rematch(RenderWindow* window);
         void menu(RenderWindow* window);
+        void read();
+        void send(Message msg);
 
     public:
         void run(RenderWindow* window);
 };
-
-struct Move { int i,j;};

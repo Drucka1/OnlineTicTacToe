@@ -10,7 +10,14 @@
 using namespace sf;
 using namespace std;
 
-void TicTacToe::init_rematch(){
+void TicTacToe::init(){
+    if (!this->font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf")) {
+        std::cerr << "Erreur de chargement de la police." << std::endl;
+    }
+    this->window = GameWindow::Menu;
+}
+
+void TicTacToe::init_match(){
     this->turn = Player::X;
     this->tour = 0;
 
@@ -21,15 +28,8 @@ void TicTacToe::init_rematch(){
     }
 }
 
-void TicTacToe::init(){
-    if (!this->font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf")) {
-        std::cerr << "Erreur de chargement de la police." << std::endl;
-    }
-    this->window = GameWindow::Menu;
-}
-
 void TicTacToe::init_socket(Player player) {
-    init_rematch();
+    init_match();
 
     this->player = player;
 
@@ -199,12 +199,11 @@ void TicTacToe::accept_rematch(RenderWindow* window){
         if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
 
         if (yes.getGlobalBounds().contains(pos.x,pos.y)) {
-            init_rematch();
-            this->window = GameWindow::Play;    
+            send({MessageType::AnswerRematch,true});
         }
 
         if (no.getGlobalBounds().contains(pos.x,pos.y)) {
-            this->window = GameWindow::Menu;           
+            send({MessageType::AnswerRematch,false});            
         }
     }
 }
@@ -230,16 +229,14 @@ void TicTacToe::end(RenderWindow* window) {
     rematch.setPosition((WINDOW +2- rematch.getGlobalBounds().width) / 2, 2*WINDOW / 4+26);
     window->draw(rematch);
     
-    
     if (Mouse::isButtonPressed(Mouse::Left)){
         Vector2i pos = Mouse::getPosition(*window);
 
-        if (menu.getGlobalBounds().contains(pos.x,pos.y)) this->window = GameWindow::Menu;
+        if (menu.getGlobalBounds().contains(pos.x,pos.y)) {
+            send({MessageType::Quit});
+        }
         if (rematch.getGlobalBounds().contains(pos.x,pos.y)) {
-            Move move = {-1,-1};
-            opponent.send(&move,sizeof(Move));
-            this->window = GameWindow::Play;
-            init_rematch();                 
+            send({MessageType::AskRematch});        
         }
     }
     
@@ -275,28 +272,27 @@ void TicTacToe::menu(RenderWindow* window){
         Vector2i pos = Mouse::getPosition(*window);
         if (join.getGlobalBounds().contains(pos.x,pos.y)) {
             init_socket(Player::O); 
-            this->window = GameWindow::Play;
+            this->window = GameWindow::Play;   
         }
         if (create.getGlobalBounds().contains(pos.x,pos.y)){
             init_socket(Player::X);
             this->window = GameWindow::Play;
         }
     }
-
 }
-
 
 void TicTacToe::run(RenderWindow* window){
     Event event;
-    size_t received = sizeof(Move);
     init();
 
     while (window->isOpen()) {
         
+        read();
+
         while (window->pollEvent(event)) {
             if (event.type == Event::Closed) {
                 window->close();
-                //send quit
+                send({MessageType::Quit});
             }
         }
 
@@ -314,14 +310,7 @@ void TicTacToe::run(RenderWindow* window){
         case GameWindow::End:
             draw(window);
             end(window);
-
-            Move move;
-            opponent.receive(&move,sizeof(Move),received);
-            if (move.i == -1 && received == sizeof(Move)) {
-                this->window = GameWindow::Rematch;
-                cout << "rematch ?" << endl;
-            }
-        
+      
             break;
         
         case GameWindow::Play:
@@ -329,18 +318,9 @@ void TicTacToe::run(RenderWindow* window){
                 if (Mouse::isButtonPressed(Mouse::Right)){
                     Vector2i pos = Mouse::getPosition(*window);
                     Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
-                    Move move = {case_pos.x,case_pos.y};
-                    opponent.send(&move,sizeof(Move));
-                    play(case_pos.x,case_pos.y,this->player);
+                    send({MessageType::Move,{case_pos.x,case_pos.y}});
                 }
-                
             } 
-            else  {
-                Move move;
-                opponent.receive(&move,sizeof(Move),received);
-                if (received == sizeof(Move)) play(move.i, move.j, this->player == Player::O ? Player::X : Player::O);
-                
-            }
             draw(window);
             break;
 
@@ -352,6 +332,82 @@ void TicTacToe::run(RenderWindow* window){
         }
         window->display();
     }
+}
+
+
+void TicTacToe::send(Message msg){
+    
+    opponent.send(&msg,sizeof(Message));  
+    switch (msg.type)
+    {
+    case MessageType::Move:
+        play(msg.data.move.i, msg.data.move.j, this->player); 
+        break;
+
+    case MessageType::Quit:
+        this->opponent.disconnect();
+        this->window = GameWindow::Menu;        
+        break;
+
+    case MessageType::AskRematch:
+        
+        break;
+
+    case MessageType::AnswerRematch:
+         
+        if (msg.data.answerRematch) {
+            init_match();
+            this->window = GameWindow::Play;
+        } 
+        else {
+            this->window = GameWindow::Menu;
+            this->opponent.disconnect();
+        }      
+        break;
+    
+    default:
+        break;
+    }
+
+}
+
+void TicTacToe::read(){
+    Message msg;
+    size_t received = sizeof(Message);
+    opponent.receive(&msg,sizeof(Message),received);
+    if (received != sizeof(Message)) return;
+
+    switch (msg.type)
+    {
+    case MessageType::Move:
+        play(msg.data.move.i, msg.data.move.j, this->player == Player::O ? Player::X : Player::O);        
+        break;
+
+    case MessageType::Quit:
+        this->window = GameWindow::Menu;
+        this->opponent.disconnect();
+        cout << "L'adversaire a quitte la parti" << endl;
+        break;
+
+    case MessageType::AskRematch:
+        this->window = GameWindow::Rematch;
+        break;
+
+    case MessageType::AnswerRematch:
+        if (msg.data.answerRematch) {
+            init_match();
+            this->window = GameWindow::Play;
+        } else {
+            this->window = GameWindow::Menu;
+            this->opponent.disconnect();
+            cout << "L'adversaire a ne souhaite pas rejouer" << endl;
+        }        
+        break;
+    
+    default:
+        break;
+    }
+    
 }
 
 int main() {
