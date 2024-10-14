@@ -10,18 +10,42 @@
 using namespace sf;
 using namespace std;
 
-void Game::init(){
-    this->turn = Player::X;
-    this->tour = 0;
-    for(int i = 0;i<3;i++){
-        for(int j = 0;j<3;j++){
-            this->map[i][j] = Player::None;
+void Game::init(Player player) {
+    return_match();
+
+    if (player == Player::X) {//Server
+        TcpListener server;
+        IpAddress addr = IpAddress::Any;
+
+        if (server.listen(PORT, addr) != sf::Socket::Done) {
+            std::cerr << "Erreur lors de l'écoute sur le port " << PORT << std::endl;
+            return;
         }
+
+        std::cout << "En attente de connexion..." << std::endl;
+
+        if (server.accept(this->opponent) != sf::Socket::Done) {
+            std::cerr << "Erreur lors de l'acceptation de la connexion." << std::endl;
+            return; 
+        }
+
+        this->opponent.setBlocking(false);
+        std::cout << "Client connecté : " << this->opponent.getRemoteAddress() << std::endl;
+
+        server.close(); 
+    } else {//Client        
+        if (this->opponent.connect("192.168.91.252", PORT) != sf::Socket::Done) {
+            std::cerr << "Erreur de connexion au serveur sur le port " << PORT << std::endl;
+            return;
+        }
+
+        this->opponent.setBlocking(false);
+        std::cout << "Connecté au serveur." << std::endl;
     }
 }
 
 void Game::play(int i, int j, Player player){
-    if (this->map[i][j] == Player::None && player == this->turn){
+    if (this->map[i][j] == Player::None && player == this->turn && 0 <= i && i <= 3 && 0 <= j && j <= 3){
         this->map[i][j] = player;
         this->tour++;
         this->turn = player == Player::O ? Player::X : Player::O;
@@ -30,6 +54,17 @@ void Game::play(int i, int j, Player player){
 
 bool Game::is_ongoing(){
     return winner() == Player::None && this->tour < 9;
+}
+
+void Game::return_match(){
+    this->turn = Player::X;
+    this->tour = 0;
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            this->map[i][j] = Player::None;
+        }
+    }
 }
 
 Player Game::winner(){
@@ -102,13 +137,65 @@ void Game::draw(RenderWindow* window){
     }
 }
 
+void Game::accept_return_match(RenderWindow* window){
+    RectangleShape background(Vector2f(WINDOW, WINDOW));
+    background.setFillColor(Color(0, 0, 0, 192));
+    window->draw(background);
+
+    static Font font; 
+    static bool fontLoaded = false;
+    if (!fontLoaded) {
+        if (!font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf")) {
+            std::cerr << "Erreur de chargement de la police." << std::endl;
+        }
+        fontLoaded = true;
+    }
+    Text menu;
+    menu.setFont(font); 
+    menu.setString("Menu");
+    menu.setCharacterSize(72);
+    menu.setFillColor(Color::White);
+    menu.setPosition((WINDOW +2 - menu.getGlobalBounds().width) / 2, WINDOW /4+26);
+    window->draw(menu);
+
+    Text text;
+    text.setFont(font); 
+    text.setString("accept rematch ?");
+    text.setCharacterSize(48);
+    text.setFillColor(Color::White);
+    text.setPosition((WINDOW +2- text.getGlobalBounds().width) / 2, 2*WINDOW / 4+26);
+    window->draw(text);
+
+    Text yes;
+    yes.setFont(font); 
+    yes.setString("YES");
+    yes.setCharacterSize(72);
+    yes.setFillColor(Color::White);
+    yes.setPosition(WINDOW / 3, 3*WINDOW / 4);
+    window->draw(yes);
+
+    Text no;
+    no.setFont(font); 
+    no.setString("NO");
+    no.setCharacterSize(72);
+    no.setFillColor(Color::White);
+    no.setPosition(2*WINDOW / 3, 3*WINDOW / 4);
+    window->draw(no);
+}
+
 void Game::menu(RenderWindow* window) {
     RectangleShape background(Vector2f(WINDOW, WINDOW));
     background.setFillColor(Color(0, 0, 0, 192));
     window->draw(background);
 
-    Font font; 
-    font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf");
+    static Font font; 
+    static bool fontLoaded = false;
+    if (!fontLoaded) {
+        if (!font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf")) {
+            std::cerr << "Erreur de chargement de la police." << std::endl;
+        }
+        fontLoaded = true;
+    }
 
     Text menu;
     menu.setFont(font); 
@@ -127,117 +214,105 @@ void Game::menu(RenderWindow* window) {
     window->draw(text);
 }
 
-void Game::run(RenderWindow* window, int socket, Player player){
+void Game::run(RenderWindow* window, Player player){
+    init(player);
     Event event;
+    bool rematch = false;
 
     while (window->isOpen()) {
         while (window->pollEvent(event)) {
             if (event.type == Event::Closed) {
                 window->close();
+                //send quit
             }
         }
         
         window->clear();
 
         if (!is_ongoing()){
-            
-            
-            draw(window);
-            menu(window);
 
-            if (Mouse::isButtonPressed(Mouse::Left)){
-                Vector2i pos = Mouse::getPosition(*window);
+            if (!rematch){
+                draw(window);
+                menu(window);
 
-                RectangleShape menu(Vector2f(206,46));
-                menu.setPosition(199,204);
-                
-                RectangleShape new_game(Vector2f(416,47));
-                new_game.setPosition(94,353);
+                if (Mouse::isButtonPressed(Mouse::Left)){
+                    Vector2i pos = Mouse::getPosition(*window);
 
-                if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
+                    RectangleShape menu(Vector2f(206,46));
+                    menu.setPosition(199,204);
+                    
+                    RectangleShape new_game(Vector2f(416,47));
+                    new_game.setPosition(94,353);
 
-                if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
-                    Move move = {-1,-1};
-                    send(socket,&move,sizeof(Move),0);
-                    init();                 
+                    if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
+
+                    if (new_game.getGlobalBounds().contains(pos.x,pos.y)) {
+                        Move move = {-1,-1};
+                        opponent.send(&move,sizeof(Move));
+                        return_match();                 
+                    }
                 }
-            }
-
-
-
-
-
-            Move move;
-
-            fd_set read_fds;
-            FD_ZERO(&read_fds);
-            FD_SET(socket, &read_fds);
-
-            struct timeval timeout;
-            timeout.tv_sec = 0; // 1 seconde
-            timeout.tv_usec = 0.1;
-
-            int result = select(socket + 1, &read_fds, NULL, NULL, &timeout);
-            if (result > 0 && FD_ISSET(socket, &read_fds)) {
-                if (read(socket, &move, sizeof(Move)) < 0) {
-                    perror("Échec lors de la lecture du socket");
-                    return;
+                Move move;
+                size_t received = sizeof(Move);
+                opponent.receive(&move,sizeof(Move),received);
+                if (move.i == -1 && received == sizeof(Move)) {
+                    rematch = true;
+                    cout << "rematch ?" << endl;
                 }
-                if (move.i == -1) init();                
+
             }
+            else {
+                draw(window);
+                accept_return_match(window);
+
+                if (Mouse::isButtonPressed(Mouse::Left)){
+                    Vector2i pos = Mouse::getPosition(*window);
+
+                    RectangleShape menu(Vector2f(206,46));
+                    menu.setPosition(199,204);
+                    
+                    RectangleShape yes(Vector2f(50,47));
+                    yes.setPosition(WINDOW / 3, 3*WINDOW / 4);
+
+                    RectangleShape no(Vector2f(50,47));
+                    no.setPosition(2*WINDOW / 3, 3*WINDOW / 4);
+
+                    if (menu.getGlobalBounds().contains(pos.x,pos.y)) window->close();
+
+                    if (yes.getGlobalBounds().contains(pos.x,pos.y)) {
+                        return_match();
+                        rematch = false;                 
+                    }
+
+                    if (no.getGlobalBounds().contains(pos.x,pos.y)) {
+                        //      rematch = false;             
+                    }
+                }
 
 
-
-
-
-
-
-
-
-
-
-
-
-            
+            }
         }  
 
         else if (player == this->turn){
             if (Mouse::isButtonPressed(Mouse::Right)){
                 Vector2i pos = Mouse::getPosition(*window);
-                
                 Vector2i case_pos = Vector2i(pos.x / (WINDOW/3),pos.y / (WINDOW/3));
-                if (case_pos.x <=3 && case_pos.y <= 3 && 0 <= case_pos.x && 0 <= case_pos.y){
-                    Move move = {case_pos.x,case_pos.y};
-                    send(socket,&move,sizeof(Move),0);
-                    play(case_pos.x,case_pos.y,player);
-                }
-                
+                Move move = {case_pos.x,case_pos.y};
+                opponent.send(&move,sizeof(Move));
+                play(case_pos.x,case_pos.y,player);
             }
             draw(window);
         } 
         
         else  {
-            Move move;
             draw(window);
             window->display();
 
-            fd_set read_fds;
-            FD_ZERO(&read_fds);
-            FD_SET(socket, &read_fds);
-
-            struct timeval timeout;
-            timeout.tv_sec = 1; // 1 seconde
-            timeout.tv_usec = 0;
-
-            int result = select(socket + 1, &read_fds, NULL, NULL, &timeout);
-            if (result > 0 && FD_ISSET(socket, &read_fds)) {
-                if (read(socket, &move, sizeof(Move)) < 0) {
-                    perror("Échec lors de la lecture du socket");
-                    return;
-                }
-                play(move.i, move.j, player == Player::O ? Player::X : Player::O);
-                
-            }
+            Move move;
+            size_t received = sizeof(Move);
+            opponent.receive(&move,sizeof(Move),received);
+            if (received == sizeof(Move)) play(move.i, move.j, player == Player::O ? Player::X : Player::O);
+            
         }
 
         window->display();
