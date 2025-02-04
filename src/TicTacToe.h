@@ -40,6 +40,7 @@ class TicTacToe{
         void menu(RenderWindow* window);
         void read();
         void send(Message msg);
+        std::string get_local_ip();
 
     public:
         void run(RenderWindow* window);

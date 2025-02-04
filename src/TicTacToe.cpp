@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <unistd.h>
 #include <string.h>
 #include <iostream>
@@ -12,7 +13,7 @@ using namespace std;
 
 void TicTacToe::init(){
     if (!this->font.loadFromFile("./font/MegamaxJonathanToo-YqOq2.ttf")) {
-        std::cerr << "Erreur de chargement de la police." << std::endl;
+        cerr << "Erreur de chargement de la police." << endl;
     }
     this->window = GameWindow::Menu;
 }
@@ -28,6 +29,35 @@ void TicTacToe::init_match(){
     }
 }
 
+string TicTacToe::get_local_ip(){
+    struct ifaddrs *interfaces = nullptr;
+    struct ifaddrs *ifa = nullptr;
+    char ip[INET_ADDRSTRLEN];
+    string local_ip = "";
+
+    if (getifaddrs(&interfaces) == -1) {
+        return local_ip;
+    }
+
+    for (ifa = interfaces; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr && ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *sock_addr = (struct sockaddr_in *)ifa->ifa_addr;
+            if (inet_ntop(AF_INET, &sock_addr->sin_addr, ip, sizeof(ip)) != nullptr) {
+                if (strcmp(ifa->ifa_name, "lo") != 0) {
+                    local_ip = string(ip);
+                    break;
+                }
+            }
+        }
+    }
+
+    if (interfaces != nullptr) {
+        freeifaddrs(interfaces);
+    }
+
+    return local_ip;
+}
+
 void TicTacToe::init_socket(Player player) {
     init_match();
 
@@ -38,29 +68,29 @@ void TicTacToe::init_socket(Player player) {
         IpAddress addr = IpAddress::Any;
 
         if (server.listen(PORT, addr) != sf::Socket::Done) {
-            std::cerr << "Erreur lors de l'écoute sur le port " << PORT << std::endl;
+            cerr << "Erreur lors de l'écoute sur le port " << PORT << endl;
             return;
         }
 
-        std::cout << "En attente de connexion..." << std::endl;
+        cout << "En attente de connexion..." << endl;
 
         if (server.accept(this->opponent) != sf::Socket::Done) {
-            std::cerr << "Erreur lors de l'acceptation de la connexion." << std::endl;
+            cerr << "Erreur lors de l'acceptation de la connexion." << endl;
             return; 
         }
 
         this->opponent.setBlocking(false);
-        std::cout << "Client connecté : " << this->opponent.getRemoteAddress() << std::endl;
+        cout << "Client connecté : " << this->opponent.getRemoteAddress() << endl;
 
         server.close(); 
     } else {//Client        
-        if (this->opponent.connect("192.168.91.252", PORT) != sf::Socket::Done) {
-            std::cerr << "Erreur de connexion au serveur sur le port " << PORT << std::endl;
+        if (this->opponent.connect(get_local_ip(), PORT) != sf::Socket::Done) {
+            cerr << "Erreur de connexion au serveur sur le port " << PORT << endl;
             return;
         }
 
         this->opponent.setBlocking(false);
-        std::cout << "Connecté au serveur." << std::endl;
+        cout << "Connecté au serveur." << endl;
     }
 }
 
